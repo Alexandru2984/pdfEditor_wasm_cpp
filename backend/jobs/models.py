@@ -16,6 +16,13 @@ class ProcessedPDFJob(models.Model):
         TEXT_EXTRACTION = "text_extraction", "Text Extraction"
         PAGE_RENDER = "page_render", "Page Render"
         FULL_ANALYSIS = "full_analysis", "Full Analysis"
+        MERGE = "merge", "Merge PDFs"
+        SPLIT = "split", "Split PDF"
+        DELETE_PAGES = "delete_pages", "Delete Pages"
+        ROTATE_PAGES = "rotate_pages", "Rotate Pages"
+        CROP_PAGES = "crop_pages", "Crop Pages"
+        OCR = "ocr", "OCR"
+        EXPORT = "export", "Export"
 
     class Status(models.TextChoices):
         COMPLETED = "completed", "Completed"

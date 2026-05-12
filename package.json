@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/Alexandru2984/pdfEditor_wasm_cpp#readme",
   "dependencies": {
-    "@embedpdf/pdfium": "^2.14.2"
+    "@embedpdf/pdfium": "^2.14.2",
+    "tesseract.js": "^7.0.0"
   }
 }
