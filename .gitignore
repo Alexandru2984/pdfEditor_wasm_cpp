@@ -1,0 +1,49 @@
+# ─── Build Artifacts ─────────────────────────────────────
+build/
+*.o
+*.d
+
+# Emscripten-generated output (in build dir or accidental)
+# Keep pdf_processor.js and pdf_processor.wasm in project root
+# for serving — but ignore if placed in build/
+build/*.js
+build/*.wasm
+
+# ─── C/C++ ───────────────────────────────────────────────
+*.gch
+*.pch
+*.obj
+*.lib
+*.a
+*.so
+*.dylib
+*.dll
+*.out
+
+# ─── CMake ───────────────────────────────────────────────
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+CTestTestfile.cmake
+install_manifest.txt
+
+# ─── OS ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+.Trash-*
+
+# ─── Editors / IDEs ─────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+tags
+TAGS
+
+# ─── Project-specific ───────────────────────────────────
+prompt.md
