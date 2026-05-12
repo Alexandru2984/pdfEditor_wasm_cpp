@@ -86,8 +86,15 @@ Open **http://localhost:8080** in your browser.
 ### Frontend (Browser)
 - **Multi-file upload** with drag & drop
 - **C++ Metadata Analysis** — PDF version, magic bytes, page count (heuristic), linearization, encryption
-- **PDFium Text Extraction** — full text from all pages using Google's PDFium engine
-- **PDFium Page Rendering** — renders first page as PNG with configurable scale
+- **PDF Toolkit (via PDFium)**:
+  - 🔀 **Merge PDFs** — Combine multiple PDFs into one
+  - ✂️ **Split PDF** — Extract specific page ranges into new files
+  - 🗑️ **Delete Pages** — Remove specific pages from a PDF
+  - 🔄 **Rotate Pages** — Rotate pages by 90°, 180°, 270°
+  - 🔲 **Crop Pages** — Set custom crop box dimensions
+  - 📝 **Extract Text** — Extract native text from PDF layers
+  - 🖼 **Render Pages** — Generate high-quality PNG thumbnails for all pages
+- **OCR (Optical Character Recognition)** — Powered by `tesseract.js` (extracts text from scanned images/pages via WebAssembly)
 - **Sidebar** — document list with selection, deletion, clear all
 - **localStorage** — analysis history persists across sessions
 

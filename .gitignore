@@ -57,6 +57,8 @@ pdfium.wasm
 backend/venv/
 backend/.env
 backend/db.sqlite3
+backend/static/
+backend/media/
 __pycache__/
 *.pyc
 *.pyo
