@@ -622,6 +622,194 @@
             }
             .stats-grid { grid-template-columns: 1fr 1fr; }
         }
+
+        /* ─── PDFium Section ─────────────────────────── */
+        .pdfium-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+
+        .action-btn {
+            font-family: var(--font-sans);
+            font-size: 0.82rem;
+            font-weight: 500;
+            padding: 0.55rem 1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-hover);
+            background: rgba(99,102,241,0.06);
+            color: var(--accent-1);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .action-btn:hover:not(:disabled) {
+            background: rgba(99,102,241,0.12);
+            border-color: var(--accent-1);
+            transform: translateY(-1px);
+        }
+        .action-btn:disabled {
+            cursor: default;
+            opacity: 0.6;
+        }
+        .action-btn.done {
+            color: var(--success);
+            border-color: rgba(16,185,129,0.3);
+            background: rgba(16,185,129,0.06);
+        }
+        .action-btn.save-btn {
+            border-color: rgba(6,182,212,0.3);
+            color: var(--accent-3);
+            background: rgba(6,182,212,0.06);
+        }
+        .action-btn.save-btn:hover:not(:disabled) {
+            background: rgba(6,182,212,0.12);
+            border-color: var(--accent-3);
+        }
+        .action-btn.save-btn.done {
+            color: var(--success);
+            border-color: rgba(16,185,129,0.3);
+            background: rgba(16,185,129,0.06);
+        }
+
+        /* Text extraction result */
+        .text-result {
+            margin-top: 0.75rem;
+        }
+        .text-stats {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.6rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .text-stats span {
+            background: rgba(100,116,139,0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+        .extracted-text-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .extracted-text-content::-webkit-scrollbar { width: 5px; }
+        .extracted-text-content::-webkit-scrollbar-thumb {
+            background: rgba(148,163,184,0.15);
+            border-radius: 4px;
+        }
+
+        /* Page preview */
+        .page-preview-result {
+            margin-top: 1rem;
+            text-align: center;
+        }
+        .page-preview-img {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+        .preview-dims {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .text-error {
+            color: var(--error);
+            font-size: 0.85rem;
+            padding: 0.5rem;
+        }
+
+        .text-muted-note {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            padding: 0.5rem 0;
+        }
+
+        /* ─── Toast System ───────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            backdrop-filter: blur(16px);
+            border-radius: var(--radius);
+            padding: 0.85rem 1.25rem;
+            z-index: 100;
+            animation: toastIn 0.35s ease-out;
+            max-width: 450px;
+        }
+        .toast p {
+            font-size: 0.85rem;
+        }
+        .toast-error {
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.25);
+        }
+        .toast-error p { color: var(--error); }
+        .toast-success {
+            background: rgba(16,185,129,0.12);
+            border: 1px solid rgba(16,185,129,0.25);
+        }
+        .toast-success p { color: var(--success); }
+
+        /* Status badges row in sidebar */
+        .status-badges {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            margin-top: 0.35rem;
+        }
+        #pdfium-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            padding: 0.2rem 0.55rem;
+            border-radius: 100px;
+            background: rgba(100,116,139,0.08);
+            border: 1px solid var(--border);
+            transition: all var(--transition);
+        }
+        #pdfium-status.ready {
+            color: var(--accent-3);
+            background: rgba(6,182,212,0.08);
+            border-color: rgba(6,182,212,0.15);
+        }
+        #pdfium-status.error {
+            color: var(--error);
+            background: rgba(239,68,68,0.08);
+            border-color: rgba(239,68,68,0.15);
+        }
     </style>
 </head>
 <body>
@@ -634,6 +822,9 @@
                     PDF Wasm Analyzer
                 </div>
                 <div id="wasm-status">⏳ Loading…</div>
+                <div class="status-badges">
+                    <div id="pdfium-status">⏳ PDFium…</div>
+                </div>
             </div>
 
             <div class="upload-area">
@@ -648,12 +839,7 @@
                 <button class="clear-all-btn" id="clear-all">Clear all</button>
             </div>
 
-            <div class="doc-list" id="doc-list">
-                <div class="doc-list-empty" id="doc-list-empty">
-                    <span class="empty-icon">📂</span>
-                    No documents yet.<br>Upload some PDFs to start.
-                </div>
-            </div>
+            <div class="doc-list" id="doc-list"></div>
         </aside>
 
         <!-- Main content -->

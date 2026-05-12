@@ -47,3 +47,16 @@ TAGS
 
 # ─── Project-specific ───────────────────────────────────
 prompt.md
+
+# ─── Node / NPM ─────────────────────────────────────────
+node_modules/
+package-lock.json
+pdfium.wasm
+
+# ─── Python / Django Backend ────────────────────────────
+backend/venv/
+backend/.env
+backend/db.sqlite3
+__pycache__/
+*.pyc
+*.pyo

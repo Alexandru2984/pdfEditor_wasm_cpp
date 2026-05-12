@@ -1,0 +1,23 @@
+{
+  "name": "pdf_wasm",
+  "version": "1.0.0",
+  "description": "A browser-based PDF file analyzer powered by **C++ compiled to WebAssembly** via [Emscripten](https://emscripten.org). All processing happens 100% client-side — no server uploads required.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Alexandru2984/pdfEditor_wasm_cpp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Alexandru2984/pdfEditor_wasm_cpp/issues"
+  },
+  "homepage": "https://github.com/Alexandru2984/pdfEditor_wasm_cpp#readme",
+  "dependencies": {
+    "@embedpdf/pdfium": "^2.14.2"
+  }
+}
