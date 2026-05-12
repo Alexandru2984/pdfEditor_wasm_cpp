@@ -1,368 +1,384 @@
 /**
- * app.js — Frontend logic for the PDF Wasm Analyzer.
+ * app.js — PDF Wasm Analyzer frontend.
  *
- * Features:
- *   - Multi-file upload support (sequential processing)
- *   - Analysis history persisted in localStorage
- *   - Drag-and-drop + file input
- *   - Proper binary data transfer to Wasm (Uint8Array, no UTF-8 corruption)
+ * Split-pane UI:
+ *   - Sidebar: document list with upload, select, delete
+ *   - Main: detailed analysis of selected document
+ *   - All data persisted in localStorage
  */
 
 // ─── State ─────────────────────────────────────────────
 
 const STORAGE_KEY = 'pdf_wasm_history';
-const MAX_HISTORY = 50;
+const MAX_HISTORY = 100;
 
 let wasmModule = null;
-let analysisHistory = [];
+let analysisHistory = [];  // Array of { id, fileName, analyzedAt, result }
+let selectedId = null;     // Currently viewed document ID
 
-// ─── Module Initialization ─────────────────────────────
+// ─── Module Init ───────────────────────────────────────
 
 async function initWasm() {
     const statusEl = document.getElementById('wasm-status');
     try {
         const { default: createPdfModule } = await import('./pdf_processor.js');
         wasmModule = await createPdfModule();
-        statusEl.textContent = '✓ Wasm module loaded';
+        statusEl.textContent = '✓ Ready';
         statusEl.classList.add('ready');
         document.getElementById('file-input').disabled = false;
-        document.getElementById('drop-zone').classList.add('active');
-        console.log('[pdf_wasm] Module initialized successfully.');
+        document.getElementById('upload-btn').classList.add('active');
     } catch (err) {
-        statusEl.textContent = '✗ Failed to load Wasm module';
+        statusEl.textContent = '✗ Failed';
         statusEl.classList.add('error');
-        console.error('[pdf_wasm] Module initialization failed:', err);
         showError(`Wasm module failed to load: ${err.message}`);
     }
 }
 
-// ─── LocalStorage Persistence ──────────────────────────
+// ─── LocalStorage ──────────────────────────────────────
 
 function loadHistory() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-            analysisHistory = JSON.parse(raw);
-        }
-    } catch (e) {
-        console.warn('[pdf_wasm] Failed to load history from localStorage:', e);
+        if (raw) analysisHistory = JSON.parse(raw);
+    } catch (_) {
         analysisHistory = [];
     }
 }
 
 function saveHistory() {
     try {
-        // Cap history to MAX_HISTORY entries
         if (analysisHistory.length > MAX_HISTORY) {
             analysisHistory = analysisHistory.slice(-MAX_HISTORY);
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(analysisHistory));
-    } catch (e) {
-        console.warn('[pdf_wasm] Failed to save history to localStorage:', e);
-    }
-}
-
-function clearHistory() {
-    analysisHistory = [];
-    localStorage.removeItem(STORAGE_KEY);
-    renderAllResults();
-    updateHistoryControls();
-}
-
-function addToHistory(entry) {
-    analysisHistory.push(entry);
-    saveHistory();
+    } catch (_) {}
 }
 
 // ─── File Processing ───────────────────────────────────
 
-/**
- * Process multiple File objects sequentially.
- * @param {FileList|File[]} files
- */
 async function processFiles(files) {
     if (!wasmModule) {
-        showError('Wasm module is not loaded yet. Please wait.');
+        showError('Wasm module is not loaded yet.');
         return;
     }
 
-    const resultsEl = document.getElementById('results');
-    resultsEl.classList.add('visible');
+    const listEl = document.getElementById('doc-list');
+    let lastEntryId = null;
 
-    for (const file of files) {
-        await processSingleFile(file);
-    }
-}
-
-/**
- * Process a single File: read as ArrayBuffer, pass Uint8Array to C++, store result.
- * @param {File} file
- */
-async function processSingleFile(file) {
-    // Show inline loading for this file
-    const loadingId = `loading-${Date.now()}`;
-    const outputEl = document.getElementById('output');
-    const loadingHtml = `
-        <div class="loading" id="${loadingId}">
-            <div class="spinner"></div>
-            <p>Analyzing <strong>${escapeHtml(file.name)}</strong>…</p>
+    // Show a single loading state in sidebar
+    listEl.innerHTML = `
+        <div class="doc-item-loading" id="batch-loading">
+            <div class="mini-spinner"></div>
+            <span>Processing ${files.length} file${files.length !== 1 ? 's' : ''}…</span>
         </div>
-    `;
-    outputEl.insertAdjacentHTML('afterbegin', loadingHtml);
+    ` + listEl.innerHTML;
 
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
+    // Process all files sequentially
+    for (const file of files) {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
 
-        // Pass Uint8Array directly to C++ via emscripten::val
-        // No string conversion — binary safe!
-        const jsonResult = wasmModule.processPdfFile(uint8Array);
-        const result = JSON.parse(jsonResult);
+            const jsonResult = wasmModule.processPdfFile(uint8Array);
+            const result = JSON.parse(jsonResult);
 
-        // Build history entry
-        const entry = {
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            fileName: file.name,
-            fileType: file.type || 'application/octet-stream',
-            analyzedAt: new Date().toISOString(),
-            result: result
-        };
+            const entry = {
+                id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                fileName: file.name,
+                analyzedAt: new Date().toISOString(),
+                result: result
+            };
 
-        addToHistory(entry);
+            analysisHistory.push(entry);
+            lastEntryId = entry.id;
+        } catch (err) {
+            showError(`Error processing ${file.name}: ${err.message}`);
+        }
+    }
 
-        // Remove loading indicator and re-render
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
+    // Save once after all files
+    saveHistory();
 
-        renderAllResults();
-        updateHistoryControls();
+    // Remove loading indicator
+    const loadingEl = document.getElementById('batch-loading');
+    if (loadingEl) loadingEl.remove();
 
-    } catch (err) {
-        console.error('[pdf_wasm] Processing error:', err);
-        const loadingEl = document.getElementById(loadingId);
-        if (loadingEl) loadingEl.remove();
-        showError(`Error processing ${file.name}: ${err.message}`);
+    // Re-render sidebar and auto-select the last processed entry
+    renderSidebar();
+    if (lastEntryId) {
+        selectDocument(lastEntryId);
     }
 }
 
-// ─── UI Rendering ──────────────────────────────────────
+// ─── Selection ─────────────────────────────────────────
 
-/**
- * Render all results from history (newest first).
- */
-function renderAllResults() {
-    const outputEl = document.getElementById('output');
-    const resultsEl = document.getElementById('results');
+function selectDocument(id) {
+    selectedId = id;
+
+    // Update sidebar selection
+    document.querySelectorAll('.doc-item').forEach(el => {
+        el.classList.toggle('selected', el.dataset.id === id);
+    });
+
+    // Render detail view
+    const entry = analysisHistory.find(e => e.id === id);
+    if (entry) {
+        renderDetail(entry);
+    }
+}
+
+// ─── Delete ────────────────────────────────────────────
+
+function deleteEntry(id, event) {
+    if (event) event.stopPropagation();
+
+    analysisHistory = analysisHistory.filter(e => e.id !== id);
+    saveHistory();
+
+    if (selectedId === id) {
+        selectedId = null;
+        renderEmptyState();
+    }
+
+    renderSidebar();
+}
+
+function clearAll() {
+    analysisHistory = [];
+    selectedId = null;
+    localStorage.removeItem(STORAGE_KEY);
+    renderSidebar();
+    renderEmptyState();
+}
+
+// ─── Rendering: Sidebar ────────────────────────────────
+
+function renderSidebar() {
+    const listEl = document.getElementById('doc-list');
+    const countEl = document.getElementById('doc-count');
+    const clearBtn = document.getElementById('clear-all');
 
     if (analysisHistory.length === 0) {
-        outputEl.innerHTML = '';
-        resultsEl.classList.remove('visible');
+        listEl.innerHTML = `
+            <div class="doc-list-empty">
+                <span class="empty-icon">📂</span>
+                No documents yet.<br>Upload some PDFs to start.
+            </div>
+        `;
+        countEl.textContent = 'Documents';
+        clearBtn.classList.remove('visible');
         return;
     }
 
-    resultsEl.classList.add('visible');
+    clearBtn.classList.add('visible');
+    countEl.textContent = `${analysisHistory.length} document${analysisHistory.length !== 1 ? 's' : ''}`;
 
-    // Render newest first
-    const cards = [...analysisHistory].reverse().map(entry => {
-        return buildResultCard(entry);
+    // Newest first
+    const items = [...analysisHistory].reverse().map(entry => {
+        const r = entry.result;
+        const isSelected = entry.id === selectedId;
+        const iconClass = r.success ? 'valid' : 'invalid';
+        const icon = r.success ? '✓' : '✗';
+        const date = new Date(entry.analyzedAt);
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+        return `
+            <div class="doc-item ${isSelected ? 'selected' : ''}"
+                 data-id="${entry.id}"
+                 onclick="window._selectDoc('${entry.id}')">
+                <div class="doc-item-icon ${iconClass}">${icon}</div>
+                <div class="doc-item-info">
+                    <div class="doc-item-name" title="${escapeHtml(entry.fileName)}">${escapeHtml(entry.fileName)}</div>
+                    <div class="doc-item-meta">
+                        <span>${r.fileSizeHuman}</span>
+                        <span>${r.estimatedPages} pg</span>
+                        <span>${dateStr} ${timeStr}</span>
+                    </div>
+                </div>
+                <button class="doc-item-delete"
+                        onclick="window._deleteDoc('${entry.id}', event)"
+                        title="Remove">×</button>
+            </div>
+        `;
     }).join('');
 
-    outputEl.innerHTML = cards;
+    listEl.innerHTML = items;
 }
 
-/**
- * Build HTML for a single result card.
- * @param {object} entry — history entry
- * @returns {string} HTML
- */
-function buildResultCard(entry) {
-    const result = entry.result;
-    const statusClass = result.success ? 'status-valid' : 'status-invalid';
-    const statusIcon  = result.success ? '✓' : '✗';
+// ─── Rendering: Detail View ────────────────────────────
 
-    const analyzedDate = new Date(entry.analyzedAt);
-    const timeStr = analyzedDate.toLocaleString();
+function renderDetail(entry) {
+    const mainEl = document.getElementById('main-content');
+    const r = entry.result;
+    const iconClass = r.success ? 'valid' : 'invalid';
+    const icon = r.success ? '✓' : '✗';
+    const date = new Date(entry.analyzedAt);
 
-    return `
-        <div class="result-card" data-id="${entry.id}">
-            <button class="delete-btn" onclick="deleteEntry('${entry.id}')" title="Remove from history" aria-label="Remove ${escapeHtml(entry.fileName)} from history">×</button>
-            <div class="result-header">
-                <span class="result-icon ${statusClass}">${statusIcon}</span>
+    mainEl.innerHTML = `
+        <div class="detail-view">
+            <div class="detail-header">
+                <div class="detail-icon ${iconClass}">${icon}</div>
                 <div>
-                    <h3 class="result-filename">${escapeHtml(entry.fileName)}</h3>
-                    <p class="result-message ${statusClass}">${escapeHtml(result.message)}</p>
-                    <p class="result-time">${escapeHtml(timeStr)}</p>
+                    <h1 class="detail-title">${escapeHtml(entry.fileName)}</h1>
+                    <p class="detail-message ${iconClass}">${escapeHtml(r.message)}</p>
+                    <p class="detail-time">Analyzed ${date.toLocaleString()}</p>
                 </div>
             </div>
 
-            <div class="result-grid">
-                <div class="result-item">
-                    <span class="label">File Size</span>
-                    <span class="value">${escapeHtml(result.fileSizeHuman)} <small>(${result.fileSize.toLocaleString()} bytes)</small></span>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">File Size</span>
+                    <span class="stat-value">${escapeHtml(r.fileSizeHuman)}<br><small>${r.fileSize.toLocaleString()} bytes</small></span>
                 </div>
-                <div class="result-item">
-                    <span class="label">Magic Bytes</span>
-                    <span class="value mono">${escapeHtml(result.magicBytes)}</span>
+                <div class="stat-card">
+                    <span class="stat-label">PDF Version</span>
+                    <span class="stat-value">${escapeHtml(r.pdfVersion)}</span>
                 </div>
-                <div class="result-item">
-                    <span class="label">PDF Version</span>
-                    <span class="value">${escapeHtml(result.pdfVersion)}</span>
+                <div class="stat-card">
+                    <span class="stat-label">Estimated Pages</span>
+                    <span class="stat-value">${r.estimatedPages}</span>
                 </div>
-                <div class="result-item">
-                    <span class="label">Estimated Pages</span>
-                    <span class="value">${result.estimatedPages}</span>
+                <div class="stat-card">
+                    <span class="stat-label">Magic Bytes</span>
+                    <span class="stat-value mono">${escapeHtml(r.magicBytes)}</span>
                 </div>
-                <div class="result-item">
-                    <span class="label">Linearized</span>
-                    <span class="value">${result.linearized ? 'Yes' : 'No'}</span>
+                <div class="stat-card">
+                    <span class="stat-label">Linearized</span>
+                    <span class="stat-value">${r.linearized ? 'Yes' : 'No'}</span>
                 </div>
-                <div class="result-item">
-                    <span class="label">Encrypted</span>
-                    <span class="value">${result.encrypted ? 'Yes ⚠' : 'No'}</span>
+                <div class="stat-card">
+                    <span class="stat-label">Encrypted</span>
+                    <span class="stat-value">${r.encrypted ? 'Yes ⚠' : 'No'}</span>
                 </div>
+            </div>
+
+            <div class="badges-row">
+                <span class="badge ${r.success ? 'yes' : 'no'}">
+                    ${r.success ? '✓ Valid PDF' : '✗ Invalid'}
+                </span>
+                <span class="badge ${r.linearized ? 'yes' : 'no'}">
+                    ${r.linearized ? '⚡ Linearized' : '— Not linearized'}
+                </span>
+                <span class="badge ${r.encrypted ? 'warn' : 'no'}">
+                    ${r.encrypted ? '🔒 Encrypted' : '🔓 Not encrypted'}
+                </span>
             </div>
 
             <details class="raw-json">
                 <summary>Raw JSON Response</summary>
-                <pre><code>${escapeHtml(JSON.stringify(result, null, 2))}</code></pre>
+                <pre><code>${escapeHtml(JSON.stringify(r, null, 2))}</code></pre>
             </details>
         </div>
     `;
 }
 
-/**
- * Update the visibility and text of history controls (count + clear button).
- */
-function updateHistoryControls() {
-    const controlsEl = document.getElementById('history-controls');
-    const countEl = document.getElementById('history-count');
-
-    if (analysisHistory.length > 0) {
-        controlsEl.classList.add('visible');
-        const n = analysisHistory.length;
-        countEl.textContent = `${n} file${n !== 1 ? 's' : ''} analyzed`;
-    } else {
-        controlsEl.classList.remove('visible');
-    }
-}
-
-/**
- * Delete a single history entry by ID.
- * @param {string} id
- */
-function deleteEntry(id) {
-    analysisHistory = analysisHistory.filter(e => e.id !== id);
-    saveHistory();
-
-    // Animate removal
-    const card = document.querySelector(`.result-card[data-id="${id}"]`);
-    if (card) {
-        card.style.transition = 'opacity 0.3s ease, transform 0.3s ease, max-height 0.3s ease';
-        card.style.opacity = '0';
-        card.style.transform = 'translateX(20px)';
-        card.style.maxHeight = card.offsetHeight + 'px';
-        setTimeout(() => {
-            card.style.maxHeight = '0';
-            card.style.padding = '0';
-            card.style.margin = '0';
-            card.style.border = 'none';
-        }, 200);
-        setTimeout(() => {
-            renderAllResults();
-            updateHistoryControls();
-        }, 400);
-    } else {
-        renderAllResults();
-        updateHistoryControls();
-    }
-}
-
-// Expose to onclick handlers
-window.deleteEntry = deleteEntry;
-
-/**
- * Show an error message in the output area (prepends, doesn't replace).
- * @param {string} msg
- */
-function showError(msg) {
-    const outputEl = document.getElementById('output');
-    const resultsEl = document.getElementById('results');
-    resultsEl.classList.add('visible');
-    const errorHtml = `
-        <div class="error-card">
-            <span class="error-icon">⚠</span>
-            <p>${escapeHtml(msg)}</p>
+function renderEmptyState() {
+    const mainEl = document.getElementById('main-content');
+    mainEl.innerHTML = `
+        <div class="empty-state" id="empty-state">
+            <span class="empty-icon">📊</span>
+            <h2>Select a document</h2>
+            <p>Upload PDF files using the sidebar, then click one to see its full analysis.</p>
         </div>
     `;
-    outputEl.insertAdjacentHTML('afterbegin', errorHtml);
 }
 
-/**
- * Escape HTML to prevent XSS when injecting user-controlled strings.
- * @param {string} str
- * @returns {string}
- */
+// ─── Error Toast ───────────────────────────────────────
+
+function showError(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'error-toast';
+    toast.innerHTML = `<span>⚠</span><p>${escapeHtml(msg)}</p>`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity 0.3s ease';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+// ─── Util ──────────────────────────────────────────────
+
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
 
-// ─── Event Handlers ────────────────────────────────────
+// ─── Global handlers (for inline onclick) ──────────────
+
+window._selectDoc = selectDocument;
+window._deleteDoc = deleteEntry;
+
+// ─── Init ──────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('file-input');
-    const dropZone  = document.getElementById('drop-zone');
-    const clearBtn  = document.getElementById('clear-history');
+    const uploadBtn = document.getElementById('upload-btn');
+    const clearBtn  = document.getElementById('clear-all');
 
-    // File input change — allow multiple files
+    // Upload button click
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    // File input
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             processFiles(e.target.files);
-            // Reset input so the same file can be re-uploaded
             e.target.value = '';
         }
     });
 
-    // Drag & drop
-    dropZone.addEventListener('dragover', (e) => {
+    // Drag & drop on upload button
+    uploadBtn.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.add('dragover');
+        uploadBtn.classList.add('dragover');
     });
-
-    dropZone.addEventListener('dragleave', (e) => {
+    uploadBtn.addEventListener('dragleave', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('dragover');
+        uploadBtn.classList.remove('dragover');
     });
-
-    dropZone.addEventListener('drop', (e) => {
+    uploadBtn.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('dragover');
+        uploadBtn.classList.remove('dragover');
         const files = [...e.dataTransfer.files].filter(f =>
             f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
         );
-        if (files.length > 0) {
-            processFiles(files);
-        } else {
-            showError('No PDF files detected. Please drop .pdf files.');
-        }
+        if (files.length > 0) processFiles(files);
+        else showError('No PDF files detected.');
     });
 
-    // Click on drop zone triggers file input
-    dropZone.addEventListener('click', () => {
-        fileInput.click();
+    // Also support drag & drop on the entire sidebar doc-list area
+    const docList = document.getElementById('doc-list');
+    docList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadBtn.classList.add('dragover');
+    });
+    docList.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        uploadBtn.classList.remove('dragover');
+    });
+    docList.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadBtn.classList.remove('dragover');
+        const files = [...e.dataTransfer.files].filter(f =>
+            f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+        );
+        if (files.length > 0) processFiles(files);
     });
 
-    // Clear history
-    clearBtn.addEventListener('click', () => {
-        clearHistory();
-    });
+    // Clear all
+    clearBtn.addEventListener('click', clearAll);
 
-    // Load saved history and render
+    // Load history & render
     loadHistory();
-    renderAllResults();
-    updateHistoryControls();
+    renderSidebar();
 
-    // Initialize Wasm
+    // Auto-select the most recent document if any
+    if (analysisHistory.length > 0) {
+        selectDocument(analysisHistory[analysisHistory.length - 1].id);
+    }
+
+    // Init Wasm
     initWasm();
 });

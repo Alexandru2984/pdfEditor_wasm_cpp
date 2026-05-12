@@ -30,6 +30,8 @@ if(EMSCRIPTEN)
         -sEXPORT_NAME=createPdfModule
         # Build environment — web only
         -sENVIRONMENT=web
+        # Export HEAPU8 for binary data transfer from JS typed arrays
+        -sEXPORTED_RUNTIME_METHODS=['HEAPU8']
         # Output .wasm alongside the JS glue
         -sWASM=1
     )
